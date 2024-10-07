@@ -26,33 +26,61 @@ VALUES
     (15, 'Cozy Throw Blanket', 'Furnishings', 24.99, 100, 4.2);
 
 SELECT *
+FROM superstore;
+
+SELECT * -- Sort items by stock quanity
+FROM superstore
+ORDER BY stock_quantity;
+
+SELECT item_id, item_name, category, stock_quantity, price -- Sort items into appliances category then order by stock quantity
+FROM superstore
+WHERE category = 'Appliances'
+ORDER BY stock_quantity
+
+%%
+
+SELECT * -- Sort items by price
 FROM superstore
 ORDER BY price;
 
-SELECT SUM(stock_quantity),item_name
+%%
+
+SELECT SUM(stock_quantity),item_name -- Find sum of stock quantity of cozy throw blankets
 FROM superstore
 WHERE item_name = "Cozy Throw Blanket";
 
-SELECT SUM(price)
+%%
+
+SELECT SUM(price) -- Sum of prices of items under Kitchen Supplies category
 FROM superstore
 WHERE category = "Kitchen Supplies";
 
-SELECT AVG(price), category
+%%
+
+SELECT AVG(price), category -- Find average price of items in Kitchen Supplies category
 FROM superstore
 WHERE category = "Kitchen Supplies";
 
-SELECT MIN(price), category
+%
+
+SELECT MIN(price), category -- Find minimum price of items in Kitchen Supplies category
 FROM superstore
 WHERE category = "Kitchen Supplies";
 
-SELECT MAX(price), category
+%
+
+SELECT MAX(price), category -- Find maximum price of items in Kitchen Supplies category
 FROM superstore
 WHERE category = "Kitchen Supplies";
 
-SELECT COUNT(item_name), category
+%
+
+SELECT COUNT(item_name), category -- Count itmes in Kitchen Supplies category
 FROM superstore
 WHERE category = "Kitchen Supplies";
 
-SELECT COUNT(item_name), category
+%
+
+SELECT COUNT(item_name), category -- Count itmes in Furnishings category
 FROM superstore
 WHERE category = "Furnishings";
