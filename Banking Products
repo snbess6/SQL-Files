@@ -42,3 +42,19 @@ SELECT *
 FROM bank_products
 WHERE product_type = 'Savings'
 AND interest_rate >=0.75 AND monthly_fee = 0;
+
+-- Looking for specific products
+SELECT product_name, description
+FROM bank_products
+WHERE product_name IN('Premium Checking','High Yield Savings','Platinum Credit Card','Gold Credit Card')
+
+---- Looking for business services
+SELECT product_name
+FROM bank_products
+WHERE product_name LIKE 'business%'
+
+-- A new customer wants something with rewards. Show the name and description for all products that have the word “reward” in either the name or description.
+SELECT product_name, description
+FROM bank_products
+WHERE product_name LIKE 'reward%'
+OR description LIKE 'reward%'
