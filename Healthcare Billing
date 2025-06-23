@@ -61,3 +61,30 @@ WHEN (payment_received / procedure_bill) < 0.25 THEN "Under 25%"
 ELSE "IN PROGRESS"
 END AS payment_status
 FROM billing;
+
+--See each patient's total remaining payment, accounting for multiple bills
+SELECT patient_id 
+, SUM(procedure_bill) - payment_received AS payment_remaining 
+FROM billing
+GROUP BY patient_id;
+
+--Show only patients with more than $150 remaining on their payment are displayed.
+SELECT patient_id 
+, SUM(procedure_bill) - payment_received AS payment_remaining 
+FROM billing
+GROUP BY patient_id
+HAVING payment_remaining >= 150;
+
+--Display the insurance providers and the number of patient bills covered by each provider for lab tests (lab test procedure codes all begin with “80”). Call the new column lab_bills.
+SELECT insurance_provider
+,COUNT(procedure_bill) AS lab_bills
+FROM billing
+WHERE procedure_code LIKE '80%'
+GROUP BY insurance_provider;
+
+-- Display only insurance companies that have billed more than 3 lab procedures.
+SELECT insurance_provider
+,COUNT(procedure_bill) AS lab_bills
+FROM billing
+WHERE procedure_code LIKE '80%' 
+HAVING COUNT(procedure_bill) >3;
