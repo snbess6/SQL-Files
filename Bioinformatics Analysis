@@ -1,0 +1,214 @@
+-- Species Table
+CREATE TABLE Species (
+    species_id SERIAL PRIMARY KEY,
+    scientific_name VARCHAR(255) NOT NULL,
+    common_name VARCHAR(255),
+    taxonomy_id INT UNIQUE
+);
+
+-- Genes Table
+CREATE TABLE Genes (
+    gene_id SERIAL PRIMARY KEY,
+    gene_symbol VARCHAR(100) NOT NULL,
+    gene_name VARCHAR(255),
+    species_id INT REFERENCES Species(species_id),
+    chromosome VARCHAR(50),
+    start_position INT,
+    end_position INT,
+    strand CHAR(1) CHECK (strand IN ('+', '-'))
+);
+
+-- Sequences Table
+CREATE TABLE Sequences (
+    sequence_id SERIAL PRIMARY KEY,
+    gene_id INT REFERENCES Genes(gene_id),
+    sequence_type VARCHAR(50) CHECK (sequence_type IN ('DNA', 'RNA', 'Protein')),
+    sequence TEXT NOT NULL
+);
+
+-- Proteins Table
+CREATE TABLE Proteins (
+    protein_id SERIAL PRIMARY KEY,
+    gene_id INT REFERENCES Genes(gene_id),
+    protein_name VARCHAR(255),
+    uniprot_id VARCHAR(50) UNIQUE,
+    function TEXT
+);
+
+-- Annotations Table
+CREATE TABLE Annotations (
+    annotation_id SERIAL PRIMARY KEY,
+    gene_id INT REFERENCES Genes(gene_id),
+    source VARCHAR(255),
+    description TEXT,
+    evidence_code VARCHAR(50)
+);
+
+-- Experiments Table
+CREATE TABLE Experiments (
+    experiment_id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    description TEXT,
+    date DATE,
+    organism_id INT REFERENCES Species(species_id)
+);
+
+-- Expression Data Table
+CREATE TABLE ExpressionData (
+    expression_id SERIAL PRIMARY KEY,
+    experiment_id INT REFERENCES Experiments(experiment_id),
+    gene_id INT REFERENCES Genes(gene_id),
+    expression_level FLOAT,
+    unit VARCHAR(50)
+);
+
+INSERT INTO Species (scientific_name, common_name, taxonomy_id) VALUES
+('Homo sapiens', 'Human', 9606),
+('Mus musculus', 'Mouse', 10090),
+('Saccharomyces cerevisiae', 'Yeast', 559292);
+
+INSERT INTO Genes (gene_symbol, gene_name, species_id, chromosome, start_position, end_position, strand) VALUES
+('TP53', 'Tumor Protein P53', 1, '17', 7668402, 7687550, '+'),
+('BRCA1', 'Breast Cancer 1', 1, '17', 43044295, 43125483, '-'),
+('Actb', 'Beta-actin', 2, '5', 142575997, 142578345, '+');
+
+INSERT INTO Sequences (gene_id, sequence_type, sequence) VALUES
+(1, 'DNA', 'ATGGAGGAGCCGCAGTCAGATCCTAGCGTCGAGCCCC...'),
+(2, 'DNA', 'ATGTCTGCTCAGAGGAGGAAACCCTGGCCTCTTTCT...'),
+(3, 'DNA', 'ATGGATGATGATATCGCCGCGCTGGCCTCGTCACCA...');
+
+INSERT INTO Proteins (gene_id, protein_name, uniprot_id, function) VALUES
+(1, 'Cellular tumor antigen p53', 'P04637', 'Acts as a tumor suppressor in many tumor types.'),
+(2, 'Breast cancer type 1 susceptibility protein', 'P38398', 'Involved in DNA damage repair.'),
+(3, 'Beta-actin', 'P60710', 'Plays a role in cell motility and structure.');
+
+INSERT INTO Annotations (gene_id, source, description, evidence_code) VALUES
+(1, 'GO Consortium', 'Involved in apoptosis regulation', 'TAS'),
+(2, 'UniProt', 'DNA repair and transcription regulation', 'EXP'),
+(3, 'NCBI', 'Structural constituent of cytoskeleton', 'IDA');
+
+INSERT INTO Experiments (title, description, date, organism_id) VALUES
+('Liver RNA-Seq', 'RNA sequencing from human liver tissue', '2024-05-15', 1),
+('Mouse Brain Microarray', 'Expression profiling of mouse brain', '2023-10-01', 2);
+
+INSERT INTO ExpressionData (experiment_id, gene_id, expression_level, unit) VALUES
+(1, 1, 8.5, 'FPKM'),
+(1, 2, 2.3, 'FPKM'),
+(2, 3, 12.7, 'RPKM');
+
+-- Select all human genes and their symbols
+SELECT Genes.gene_symbol, Genes.gene_name
+FROM Genes
+JOIN Species
+ON Genes.species_id = Species.species_id
+WHERE Species.scientific_name = 'Homo sapiens';
+
+--List all experiments done on mice (Mus musculus)
+SELECT Experiments.title, Experiments.date
+FROM Experiments
+JOIN Species
+ON Experiments.organism_id = Species.species_id
+WHERE Species.common_name = 'Mouse';
+
+--Show all sequences and their type for gene TP53
+SELECT Sequences.sequence_type, Sequences.sequence
+FROM Sequences
+JOIN Genes
+ON Sequences.gene_id = Genes.gene_id
+WHERE Genes.gene_symbol = 'TP53';
+
+--List genes with expression levels above 5.0 in any experiment
+SELECT Genes.gene_symbol, Experiments.title, ExpressionData.expression_level
+FROM ExpressionData
+JOIN Genes
+ON ExpressionData.gene_id = Genes.gene_id
+JOIN Experiments 
+ON ExpressionData.experiment_id = Experiments.experiment_id
+WHERE ExpressionData.expression_level > 5.0;
+
+--Find the function of proteins associated with BRCA1
+SELECT Proteins.protein_name, Proteins.function
+FROM Proteins
+JOIN Genes 
+ON Proteins.gene_id = Genes.gene_id
+WHERE Genes.gene_symbol = 'BRCA1';
+
+--List all annotations with their evidence codes for human genes
+SELECT Genes.gene_symbol, Annotations.description, Annotations.evidence_code
+FROM Annotations
+JOIN Genes
+ON Annotations.gene_id = Genes.gene_id
+JOIN Species
+ON Genes.species_id = Species.species_id
+WHERE Species.common_name = 'Human';
+
+--Count the number of genes per species
+SELECT Species.common_name, COUNT(Genes.gene_id) AS gene_count
+FROM Species
+JOIN Genes
+ON Genes.species_id = Species.species_id
+GROUP BY Species.common_name;
+
+--Top expressed gene per experiment
+SELECT Experiments.title AS experiment_title, Genes.gene_symbol, ExpressionData.expression_level
+FROM ExpressionData
+JOIN Experiments
+ON ExpressionData.experiment_id = Experiments.experiment_id
+JOIN Genes
+ON ExpressionData.gene_id = Genes.gene_id
+WHERE (ExpressionData.experiment_id, ExpressionData.expression_level) IN (
+    SELECT experiment_id, MAX(expression_level)
+    FROM ExpressionData
+    GROUP BY experiment_id);
+
+--Find genes without any expression data
+SELECT Genes.gene_symbol
+FROM Genes
+LEFT JOIN ExpressionData
+ON Genes.gene_id = ExpressionData.gene_id
+WHERE ExpressionData.expression_id IS NULL;
+
+--Genes with a DNA sequence longer than 100 characters
+SELECT Genes.gene_symbol, LENGTH(Sequences.sequence) AS seq_length
+FROM Sequences
+JOIN Genes
+ON Sequences.gene_id = Genes.gene_id
+WHERE Sequences.sequence_type = 'DNA' AND LENGTH(Sequences.sequence) > 100;
+
+--Get all human proteins whose function contains the word “repair”
+SELECT Proteins.protein_name, Proteins.function
+FROM Proteins
+JOIN Genes 
+ON Proteins.gene_id = Genes.gene_id
+JOIN Species
+ON Genes.species_id = Species.species_id
+WHERE Species.common_name = 'Human' AND LOWER(Proteins.function) LIKE '%repair%';
+
+--Count of genes with and without annotations
+SELECT
+    CASE WHEN Annotations.annotation_id IS NOT NULL THEN 'With Annotation' ELSE 'No Annotation' END AS annotation_status,
+    COUNT(*) AS gene_count
+FROM Genes
+LEFT JOIN Annotations
+ON Genes.gene_id = Annotations.gene_id
+GROUP BY annotation_status;
+
+--Average expression level by species (only include genes that have expression data)
+SELECT Species.common_name, AVG(ExpressionData.expression_level) AS avg_expression
+FROM ExpressionData
+JOIN Genes
+ON ExpressionData.gene_id = Genes.gene_id
+JOIN Species
+ON Genes.species_id = Species.species_id
+GROUP BY Species.common_name;
+
+--Experiments where TP53 is expressed above the average of all genes
+SELECT Experiments.title, ExpressionData.expression_level
+FROM ExpressionData
+JOIN Genes
+ON ExpressionData.gene_id = Genes.gene_id
+JOIN Experiments
+ON ExpressionData.experiment_id = Experiments.experiment_id
+WHERE Genes.gene_symbol = 'TP53'
+AND ExpressionData.expression_level > (SELECT AVG(expression_level)
+FROM ExpressionData);
