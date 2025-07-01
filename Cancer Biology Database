@@ -1,0 +1,257 @@
+-- Create Patients table
+CREATE TABLE Patients (
+    patient_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),
+    age INT,
+    sex ENUM('Male', 'Female', 'Other'),
+    diagnosis_date DATE,
+    cancer_type VARCHAR(100),
+    stage VARCHAR(50),
+    notes TEXT
+);
+
+-- Create Samples table
+CREATE TABLE Samples (
+    sample_id INT PRIMARY KEY AUTO_INCREMENT,
+    patient_id INT,
+    sample_type ENUM('Tumor', 'Normal', 'Blood', 'Other'),
+    collection_date DATE,
+    tissue_site VARCHAR(100),
+    FOREIGN KEY (patient_id) REFERENCES Patients(patient_id)
+);
+
+-- Create Genes table
+CREATE TABLE Genes (
+    gene_id INT PRIMARY KEY AUTO_INCREMENT,
+    gene_symbol VARCHAR(20),
+    gene_name VARCHAR(100),
+    chromosome VARCHAR(10),
+    start_position BIGINT,
+    end_position BIGINT
+);
+
+-- Create Metabolites table
+CREATE TABLE Metabolites (
+    metabolite_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),
+    formula VARCHAR(50),
+    mass FLOAT,
+    pathway VARCHAR(100)
+);
+
+-- Create GeneExpression table
+CREATE TABLE GeneExpression (
+    expression_id INT PRIMARY KEY AUTO_INCREMENT,
+    sample_id INT,
+    gene_id INT,
+    expression_level FLOAT,
+    FOREIGN KEY (sample_id) REFERENCES Samples(sample_id),
+    FOREIGN KEY (gene_id) REFERENCES Genes(gene_id)
+);
+
+-- Create MetaboliteLevels table
+CREATE TABLE MetaboliteLevels (
+    level_id INT PRIMARY KEY AUTO_INCREMENT,
+    sample_id INT,
+    metabolite_id INT,
+    concentration FLOAT,
+    unit VARCHAR(20),
+    FOREIGN KEY (sample_id) REFERENCES Samples(sample_id),
+    FOREIGN KEY (metabolite_id) REFERENCES Metabolites(metabolite_id)
+);
+
+-- Create Experiments table
+CREATE TABLE Experiments (
+    experiment_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),
+    description TEXT,
+    date DATE
+);
+
+-- Link samples to experiments
+CREATE TABLE SampleExperiments (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    sample_id INT,
+    experiment_id INT,
+    FOREIGN KEY (sample_id) REFERENCES Samples(sample_id),
+    FOREIGN KEY (experiment_id) REFERENCES Experiments(experiment_id)
+);
+
+INSERT INTO Samples (patient_id, sample_type, collection_date, tissue_site) VALUES
+(1, 'Tumor', '2024-03-20', 'Breast'),
+(1, 'Normal', '2024-03-20', 'Breast'),
+(2, 'Tumor', '2023-07-25', 'Lung'),
+(3, 'Tumor', '2025-01-10', 'Colon'),
+(3, 'Blood', '2025-01-10', 'Peripheral blood');
+
+INSERT INTO Genes (gene_symbol, gene_name, chromosome, start_position, end_position) VALUES
+('TP53', 'Tumor protein p53', '17p13.1', 7668402, 7687550),
+('BRCA1', 'Breast cancer type 1 susceptibility protein', '17q21.31', 43044295, 43125483),
+('KRAS', 'KRAS proto-oncogene', '12p12.1', 25205248, 25250937);
+
+INSERT INTO Metabolites (name, formula, mass, pathway) VALUES
+('Lactate', 'C3H6O3', 90.08, 'Glycolysis'),
+('Glucose', 'C6H12O6', 180.16, 'Glycolysis'),
+('Citrate', 'C6H8O7', 192.12, 'TCA Cycle');
+
+INSERT INTO GeneExpression (sample_id, gene_id, expression_level) VALUES
+(1, 1, 2.5), -- TP53 in tumor breast
+(1, 2, 7.8), -- BRCA1 in tumor breast
+(1, 3, 1.2), -- KRAS in tumor breast
+(2, 1, 5.1), -- TP53 in normal breast
+(3, 3, 6.4), -- KRAS in lung tumor
+(4, 3, 4.2); -- KRAS in colon tumor
+
+INSERT INTO MetaboliteLevels (sample_id, metabolite_id, concentration, unit) VALUES
+(1, 1, 15.2, 'mM'), -- Lactate high in tumor breast
+(1, 2, 3.1, 'mM'),
+(1, 3, 1.2, 'mM'),
+(2, 1, 5.6, 'mM'), -- Lactate in normal breast
+(3, 1, 18.5, 'mM'), -- Lactate in lung tumor
+(4, 3, 2.4, 'mM'); -- Citrate in colon tumor
+
+INSERT INTO Experiments (name, description, date) VALUES
+('RNA-seq Batch 1', 'Gene expression profiling', '2024-04-01'),
+('Metabolomics Run 1', 'Mass spec-based metabolite analysis', '2024-04-05');
+
+INSERT INTO SampleExperiments (sample_id, experiment_id) VALUES
+(1, 1),
+(1, 2),
+(2, 1),
+(3, 2),
+(4, 1),
+(4, 2);
+
+-- List all patients with their cancer type and stage
+SELECT patient_id, name, cancer_type, stage
+FROM Patients;
+
+--Find all tumor samples collected after Jan 1, 2024
+SELECT sample_id, patient_id, tissue_site, collection_date
+FROM Samples
+WHERE sample_type = 'Tumor'
+  AND collection_date > '2024-01-01';
+
+--Get gene expression levels for TP53 across all samples
+SELECT s.sample_id, s.sample_type, p.name AS patient_name, ge.expression_level
+FROM GeneExpression ge
+JOIN Samples s ON ge.sample_id = s.sample_id
+JOIN Patients p ON s.patient_id = p.patient_id
+JOIN Genes g ON ge.gene_id = g.gene_id
+WHERE g.gene_symbol = 'TP53';
+
+--Which metabolites are elevated (>10 mM) in tumor samples?
+SELECT m.name AS metabolite_name, ml.concentration, ml.unit, s.sample_id, p.name AS patient_name
+FROM MetaboliteLevels ml
+JOIN Metabolites m ON ml.metabolite_id = m.metabolite_id
+JOIN Samples s ON ml.sample_id = s.sample_id
+JOIN Patients p ON s.patient_id = p.patient_id
+WHERE s.sample_type = 'Tumor'
+  AND ml.concentration > 10;
+
+--Show all experiments and linked sample IDs
+SELECT e.experiment_id, e.name AS experiment_name, s.sample_id
+FROM Experiments e
+JOIN SampleExperiments se ON e.experiment_id = se.experiment_id
+JOIN Samples s ON se.sample_id = s.sample_id
+ORDER BY e.experiment_id, s.sample_id;
+
+--Average gene expression of KRAS in tumor samples
+SELECT AVG(ge.expression_level) AS avg_kras_expression
+FROM GeneExpression ge
+JOIN Samples s ON ge.sample_id = s.sample_id
+JOIN Genes g ON ge.gene_id = g.gene_id
+WHERE g.gene_symbol = 'KRAS'
+  AND s.sample_type = 'Tumor';
+
+--Patients with both tumor and normal samples
+SELECT p.patient_id, p.name
+FROM Patients p
+JOIN Samples s1 ON p.patient_id = s1.patient_id AND s1.sample_type = 'Tumor'
+JOIN Samples s2 ON p.patient_id = s2.patient_id AND s2.sample_type = 'Normal'
+GROUP BY p.patient_id, p.name;
+
+--All metabolites per patient’s tumor samples
+SELECT p.name AS patient_name, s.sample_id, m.name AS metabolite_name, ml.concentration, ml.unit
+FROM MetaboliteLevels ml
+JOIN Metabolites m ON ml.metabolite_id = m.metabolite_id
+JOIN Samples s ON ml.sample_id = s.sample_id
+JOIN Patients p ON s.patient_id = p.patient_id
+WHERE s.sample_type = 'Tumor'
+ORDER BY p.name, m.name;
+
+--Find the top 2 most highly expressed genes (on average) across tumor samples
+SELECT g.gene_symbol, AVG(ge.expression_level) AS avg_expression
+FROM GeneExpression ge
+JOIN Genes g ON ge.gene_id = g.gene_id
+JOIN Samples s ON ge.sample_id = s.sample_id
+WHERE s.sample_type = 'Tumor'
+GROUP BY g.gene_symbol
+ORDER BY avg_expression DESC
+LIMIT 2;
+
+--For each patient, compute the tumor-to-normal lactate concentration ratio
+SELECT p.name,
+       MAX(CASE WHEN s.sample_type = 'Tumor' THEN ml.concentration ELSE NULL END) /
+       MAX(CASE WHEN s.sample_type = 'Normal' THEN ml.concentration ELSE NULL END) AS lactate_ratio
+FROM Patients p
+JOIN Samples s ON p.patient_id = s.patient_id
+JOIN MetaboliteLevels ml ON s.sample_id = ml.sample_id
+JOIN Metabolites m ON ml.metabolite_id = m.metabolite_id
+WHERE m.name = 'Lactate'
+GROUP BY p.patient_id, p.name;
+
+-- List patients where KRAS expression in tumor > any KRAS expression in normal of the same patient
+SELECT DISTINCT p.name
+FROM Patients p
+JOIN Samples stumor ON p.patient_id = stumor.patient_id AND stumor.sample_type = 'Tumor'
+JOIN Samples snormal ON p.patient_id = snormal.patient_id AND snormal.sample_type = 'Normal'
+JOIN GeneExpression ge_tumor ON ge_tumor.sample_id = stumor.sample_id
+JOIN GeneExpression ge_normal ON ge_normal.sample_id = snormal.sample_id
+JOIN Genes g ON ge_tumor.gene_id = g.gene_id AND ge_normal.gene_id = g.gene_id
+WHERE g.gene_symbol = 'KRAS'
+  AND ge_tumor.expression_level > ge_normal.expression_level;
+
+--Which metabolites show higher average concentration in tumors than normals?
+SELECT m.name AS metabolite_name,
+       AVG(CASE WHEN s.sample_type = 'Tumor' THEN ml.concentration ELSE NULL END) AS avg_tumor,
+       AVG(CASE WHEN s.sample_type = 'Normal' THEN ml.concentration ELSE NULL END) AS avg_normal
+FROM MetaboliteLevels ml
+JOIN Metabolites m ON ml.metabolite_id = m.metabolite_id
+JOIN Samples s ON ml.sample_id = s.sample_id
+GROUP BY m.metabolite_id, m.name
+HAVING avg_tumor > avg_normal;
+
+--For each experiment, how many unique tumor samples were analyzed?
+SELECT e.name AS experiment_name, COUNT(DISTINCT se.sample_id) AS tumor_samples_count
+FROM Experiments e
+JOIN SampleExperiments se ON e.experiment_id = se.experiment_id
+JOIN Samples s ON se.sample_id = s.sample_id
+WHERE s.sample_type = 'Tumor'
+GROUP BY e.experiment_id, e.name;
+
+
+--Get tumor samples with at least one gene highly expressed (expression > 5)
+SELECT DISTINCT s.sample_id, p.name AS patient_name
+FROM GeneExpression ge
+JOIN Samples s ON ge.sample_id = s.sample_id
+JOIN Patients p ON s.patient_id = p.patient_id
+WHERE s.sample_type = 'Tumor'
+  AND ge.expression_level > 5;
+
+--Find patients with no normal samples
+SELECT p.patient_id, p.name
+FROM Patients p
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM Samples s
+    WHERE s.patient_id = p.patient_id AND s.sample_type = 'Normal');
+
+--Rank tumor samples by total gene expression (sum of all gene expression levels)
+SELECT s.sample_id, p.name AS patient_name, SUM(ge.expression_level) AS total_expression
+FROM GeneExpression ge
+JOIN Samples s ON ge.sample_id = s.sample_id
+JOIN Patients p ON s.patient_id = p.patient_id
+WHERE s.sample_type = 'Tumor'
+GROUP BY s.sample_id, p.name
+ORDER BY total_expression DESC;
