@@ -1,0 +1,205 @@
+CREATE TABLE Owners (
+    owner_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT UNIQUE);
+    
+CREATE TABLE Pets (
+    pet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    species TEXT,
+    breed TEXT,
+    birth_date DATE,
+    owner_id INTEGER,
+    FOREIGN KEY (owner_id) REFERENCES Owners(owner_id));
+    
+CREATE TABLE Vets (
+    vet_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    specialty TEXT);
+
+CREATE TABLE Visits (
+    visit_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pet_id INTEGER,
+    vet_id INTEGER,
+    visit_date DATE NOT NULL,
+    reason TEXT,
+    FOREIGN KEY (pet_id) REFERENCES Pets(pet_id),
+    FOREIGN KEY (vet_id) REFERENCES Vets(vet_id));
+    
+CREATE TABLE Treatments (
+    treatment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    visit_id INTEGER,
+    description TEXT,
+    cost REAL,
+    FOREIGN KEY (visit_id) REFERENCES Visits(visit_id));
+    
+INSERT INTO Owners (first_name, last_name, phone, email) VALUES
+('John', 'Doe', '555-1111', 'john.doe@example.com'),
+('Jane', 'Smith', '555-2222', 'jane.smith@example.com'),
+('Alice', 'Wong', '555-3333', 'alice.wong@example.com');
+
+INSERT INTO Pets (name, species, breed, birth_date, owner_id) VALUES
+('Buddy', 'Dog', 'Golden Retriever', '2020-05-10', 1),
+('Whiskers', 'Cat', 'Siamese', '2019-08-22', 2),
+('Max', 'Dog', 'Bulldog', '2021-01-15', 3),
+('Luna', 'Cat', 'Persian', '2022-03-05', 1);
+
+INSERT INTO Vets (first_name, last_name, specialty) VALUES
+('Emily', 'Clark', 'Surgery'),
+('Mark', 'Lewis', 'Dermatology'),
+('Sophia', 'Nguyen', 'General Medicine');
+
+INSERT INTO Visits (pet_id, vet_id, visit_date, reason) VALUES
+(1, 1, '2025-07-01', 'Routine checkup'),
+(2, 2, '2025-07-02', 'Skin rash'),
+(3, 3, '2025-07-03', 'Vaccination'),
+(4, 1, '2025-07-04', 'Eye infection');
+
+INSERT INTO Treatments (visit_id, description, cost) VALUES
+(1, 'General health check', 50.00),
+(2, 'Skin ointment prescribed', 75.00),
+(3, 'Rabies vaccine administered', 40.00),
+(4, 'Eye drops prescribed', 60.00);
+
+--Shows each pet, its species/breed, and owner’s full name.
+SELECT 
+    Pets.name AS pet_name,
+    Pets.species,
+    Pets.breed,
+    Owners.first_name || ' ' || Owners.last_name AS owner_name
+FROM Pets
+JOIN Owners ON Pets.owner_id = Owners.owner_id;
+
+--List all visits with pet and vet names
+SELECT 
+    Visits.visit_date,
+    Pets.name AS pet_name,
+    Vets.first_name || ' ' || Vets.last_name AS vet_name,
+    Visits.reason
+FROM Visits
+JOIN Pets ON Visits.pet_id = Pets.pet_id
+JOIN Vets ON Visits.vet_id = Vets.vet_id
+ORDER BY Visits.visit_date;
+
+--Find all treatments for a specific pet (e.g. 'Buddy')
+SELECT 
+    Treatments.description,
+    Treatments.cost,
+    Visits.visit_date
+FROM Treatments
+JOIN Visits ON Treatments.visit_id = Visits.visit_id
+JOIN Pets ON Visits.pet_id = Pets.pet_id
+WHERE Pets.name = 'Buddy'
+ORDER BY Visits.visit_date;
+
+--Total treatment cost for each owner
+SELECT 
+    Owners.first_name || ' ' || Owners.last_name AS owner_name,
+    SUM(Treatments.cost) AS total_cost
+FROM Owners
+JOIN Pets ON Owners.owner_id = Pets.owner_id
+JOIN Visits ON Pets.pet_id = Visits.pet_id
+JOIN Treatments ON Visits.visit_id = Treatments.visit_id
+GROUP BY Owners.owner_id
+ORDER BY total_cost DESC;
+
+--List vets and how many visits they handled
+SELECT 
+    Vets.first_name || ' ' || Vets.last_name AS vet_name,
+    COUNT(Visits.visit_id) AS visit_count
+FROM Vets
+LEFT JOIN Visits ON Vets.vet_id = Visits.vet_id
+GROUP BY Vets.vet_id
+ORDER BY visit_count DESC;
+
+--Lists future scheduled visits.
+SELECT 
+    visit_date,
+    Pets.name AS pet_name,
+    Vets.first_name || ' ' || Vets.last_name AS vet_name,
+    reason
+FROM Visits
+JOIN Pets ON Visits.pet_id = Pets.pet_id
+JOIN Vets ON Visits.vet_id = Vets.vet_id
+WHERE visit_date >= DATE('now')
+ORDER BY visit_date ASC;
+
+--Owners who have pets but no visits recorded
+SELECT 
+    o.first_name || ' ' || o.last_name AS owner_name
+FROM Owners o
+JOIN Pets p ON o.owner_id = p.owner_id
+LEFT JOIN Visits v ON p.pet_id = v.pet_id
+WHERE v.visit_id IS NULL
+GROUP BY o.owner_id;
+
+--See what the priciest treatment each pet received was.
+SELECT 
+    p.name AS pet_name,
+    t.description,
+    MAX(t.cost) AS max_cost
+FROM Pets p
+JOIN Visits v ON p.pet_id = v.pet_id
+JOIN Treatments t ON v.visit_id = t.visit_id
+GROUP BY p.pet_id
+ORDER BY max_cost DESC;
+
+--Identifies the vet associated with the highest total treatment revenue.
+SELECT 
+    v.first_name || ' ' || v.last_name AS vet_name,
+    SUM(t.cost) AS total_earned
+FROM Vets v
+JOIN Visits vis ON v.vet_id = vis.vet_id
+JOIN Treatments t ON vis.visit_id = t.visit_id
+GROUP BY v.vet_id
+ORDER BY total_earned DESC
+LIMIT 1;
+
+--Pets with more than 1 visit
+SELECT 
+    p.name AS pet_name,
+    COUNT(v.visit_id) AS visit_count
+FROM Pets p
+JOIN Visits v ON p.pet_id = v.pet_id
+GROUP BY p.pet_id
+HAVING visit_count > 1;
+
+--Average treatment cost by species
+SELECT 
+    p.species,
+    ROUND(AVG(t.cost), 2) AS avg_treatment_cost
+FROM Pets p
+JOIN Visits v ON p.pet_id = v.pet_id
+JOIN Treatments t ON v.visit_id = t.visit_id
+GROUP BY p.species;
+
+--Last visit date for each pet
+SELECT 
+    p.name AS pet_name,
+    MAX(v.visit_date) AS last_visit
+FROM Pets p
+JOIN Visits v ON p.pet_id = v.pet_id
+GROUP BY p.pet_id;
+
+--Owners who spent over $100
+SELECT 
+    o.first_name || ' ' || o.last_name AS owner_name,
+    SUM(t.cost) AS total_spent
+FROM Owners o
+JOIN Pets p ON o.owner_id = p.owner_id
+JOIN Visits v ON p.pet_id = v.pet_id
+JOIN Treatments t ON v.visit_id = t.visit_id
+GROUP BY o.owner_id
+HAVING total_spent > 100;
+
+--Which vet treats the most unique pets
+SELECT 
+    v.first_name || ' ' || v.last_name AS vet_name,
+    COUNT(DISTINCT v2.pet_id) AS unique_pets_seen
+FROM Vets v
+JOIN Visits v2 ON v.vet_id = v2.vet_id
+GROUP BY v.vet_id
+ORDER BY unique_pets_seen DESC;
