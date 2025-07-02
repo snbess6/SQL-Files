@@ -1,0 +1,154 @@
+-- Authors table
+CREATE TABLE Authors (
+    author_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    birth_year INT
+);
+
+-- Books table
+CREATE TABLE Books (
+    book_id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    author_id INT,
+    published_year INT,
+    genre VARCHAR(50),
+    FOREIGN KEY (author_id) REFERENCES Authors(author_id)
+);
+
+-- Members table
+CREATE TABLE Members (
+    member_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    join_date DATE NOT NULL
+);
+
+-- Loans table
+CREATE TABLE Loans (
+    loan_id INT AUTO_INCREMENT PRIMARY KEY,
+    book_id INT,
+    member_id INT,
+    loan_date DATE NOT NULL,
+    return_date DATE,
+    FOREIGN KEY (book_id) REFERENCES Books(book_id),
+    FOREIGN KEY (member_id) REFERENCES Members(member_id)
+);
+
+-- Insert Authors
+INSERT INTO Authors (name, birth_year) VALUES 
+('J.K. Rowling', 1965),
+('George Orwell', 1903),
+('Jane Austen', 1775);
+
+-- Insert Books
+INSERT INTO Books (title, author_id, published_year, genre) VALUES 
+('Harry Potter and the Sorcerer\'s Stone', 1, 1997, 'Fantasy'),
+('1984', 2, 1949, 'Dystopian'),
+('Pride and Prejudice', 3, 1813, 'Romance');
+
+-- Insert Members
+INSERT INTO Members (name, join_date) VALUES 
+('Alice Johnson', '2024-01-15'),
+('Bob Smith', '2024-03-22'),
+('Charlie Lee', '2024-06-10');
+
+-- Insert Loans
+INSERT INTO Loans (book_id, member_id, loan_date, return_date) VALUES 
+(1, 1, '2024-06-01', '2024-06-15'),
+(2, 2, '2024-06-05', NULL),  -- Book not yet returned
+(3, 3, '2024-06-07', '2024-06-20');
+
+--List all books with author names
+SELECT b.book_id, b.title, a.name AS author, b.published_year, b.genre
+FROM Books b
+JOIN Authors a ON b.author_id = a.author_id;
+
+--Show all members and their current loans (books not yet returned)
+SELECT m.name AS member_name, b.title AS book_title, l.loan_date
+FROM Loans l
+JOIN Members m ON l.member_id = m.member_id
+JOIN Books b ON l.book_id = b.book_id
+WHERE l.return_date IS NULL;
+
+--Find overdue loans (assuming loans should be returned within 14 days)
+SELECT m.name AS member_name, b.title AS book_title, l.loan_date
+FROM Loans l
+JOIN Members m ON l.member_id = m.member_id
+JOIN Books b ON l.book_id = b.book_id
+WHERE l.return_date IS NULL
+  AND DATEDIFF(CURDATE(), l.loan_date) > 14;
+
+--Count books per genre
+SELECT genre, COUNT(*) AS book_count
+FROM Books
+GROUP BY genre;
+
+--List authors who have more than 1 book in the library
+SELECT a.name AS author_name, COUNT(b.book_id) AS books_written
+FROM Authors a
+JOIN Books b ON a.author_id = b.author_id
+GROUP BY a.author_id
+HAVING COUNT(b.book_id) > 1;
+
+--List members who joined after a certain date (e.g. after 2024-02-01)
+SELECT *
+FROM Members
+WHERE join_date > '2024-02-01';
+
+--Show loan history for a particular member (e.g. Alice Johnson)
+SELECT b.title, l.loan_date, l.return_date
+FROM Loans l
+JOIN Books b ON l.book_id = b.book_id
+JOIN Members m ON l.member_id = m.member_id
+WHERE m.name = 'Alice Johnson';
+
+--Shows the 3 books that have been loaned out the most.
+SELECT b.title, COUNT(l.loan_id) AS loan_count
+FROM Books b
+JOIN Loans l ON b.book_id = l.book_id
+GROUP BY b.book_id, b.title
+ORDER BY loan_count DESC
+LIMIT 3;
+
+--Finds members who never borrowed a book.
+SELECT m.name
+FROM Members m
+LEFT JOIN Loans l ON m.member_id = l.member_id
+WHERE l.loan_id IS NULL;
+
+--Lists the latest book each member borrowed.
+SELECT m.name AS member_name, b.title AS last_borrowed_book, l.loan_date
+FROM Loans l
+JOIN (
+    SELECT member_id, MAX(loan_date) AS latest_loan
+    FROM Loans
+    GROUP BY member_id
+) sub ON l.member_id = sub.member_id AND l.loan_date = sub.latest_loan
+JOIN Members m ON l.member_id = m.member_id
+JOIN Books b ON l.book_id = b.book_id;
+
+--Calculates how long each book has been out (or was out if returned)
+SELECT 
+  l.loan_id,
+  m.name AS member_name,
+  b.title AS book_title,
+  l.loan_date,
+  l.return_date,
+  DATEDIFF(COALESCE(l.return_date, CURDATE()), l.loan_date) AS duration_days
+FROM Loans l
+JOIN Members m ON l.member_id = m.member_id
+JOIN Books b ON l.book_id = b.book_id;
+
+--Finds the most popular author based on loan activity.
+SELECT a.name AS author_name, COUNT(l.loan_id) AS total_loans
+FROM Authors a
+JOIN Books b ON a.author_id = b.author_id
+JOIN Loans l ON b.book_id = l.book_id
+GROUP BY a.author_id
+ORDER BY total_loans DESC
+LIMIT 1;
+
+--Shows the percentage of books currently loaned out.
+SELECT 
+  CONCAT(ROUND(100 * COUNT(DISTINCT l.book_id) / (SELECT COUNT(*) FROM Books), 2), '%') AS percent_on_loan
+FROM Loans l
+WHERE l.return_date IS NULL;
